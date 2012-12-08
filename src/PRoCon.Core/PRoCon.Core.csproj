@@ -89,6 +89,7 @@
     <Compile Include="Battlemap\MapZoneDrawing.cs" />
     <Compile Include="Battlemap\ZoneAction.cs" />
     <Compile Include="Battlemap\ZoneTagList.cs" />
+    <Compile Include="CAdaptiveServerSize.cs" />
     <Compile Include="CBanInfo.cs" />
     <Compile Include="CDownloadFile.cs" />
     <Compile Include="CUltimateMapManager.cs" />
