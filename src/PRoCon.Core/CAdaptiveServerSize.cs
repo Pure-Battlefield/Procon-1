@@ -897,7 +897,20 @@ namespace PRoConEvents
 
         private void CheckServerSize()
         {
-            this.m_iDesiredServerSize = Math.Min(this.m_iCurrentGameModeMax, this.m_iPlayerServerSize[Math.Min(this.m_iCurrentPlayerCount + this.m_DPlayerJoined.Count, this.m_iMaxServerSize)]);
+            int iCurrentGameModeMin = (int) Math.Ceiling(m_iCurrentGameModeMax * .75);
+            int iAdjustedPlayerCount = this.m_iPlayerServerSize[Math.Min(this.m_iCurrentPlayerCount + this.m_DPlayerJoined.Count, this.m_iMaxServerSize)];
+            this.m_iDesiredServerSize = Math.Min(this.m_iCurrentGameModeMax, iCurrentGameModeMin);
+
+            if (iAdjustedPlayerCount < iCurrentGameModeMin)
+            {
+                this.m_iDesiredServerSize = iCurrentGameModeMin;
+            }
+            else
+            {
+                this.m_iDesiredServerSize = Math.Min(this.m_iCurrentGameModeMax, iAdjustedPlayerCount);
+            }
+
+
             if ((this.m_iCurrentPlayerCount == 0 || DateTime.UtcNow.Ticks / 10000000 - this.m_lLastLevelLoaded < 5) && !this.m_blRestartRequested && this.m_iServerSizeAtStart < this.m_iMaxServerSize && !this.m_blRoundEnded && this.m_iServerSizeAtStart > 0)
             {
                 WritePluginConsole("WORK -> " + this.m_iCurrentPlayerCount + " players online. " + this.m_DPlayerJoined.Count + " players joining. Round started at " + this.m_iServerSizeAtStart + ". Restarting round at max server size.");
