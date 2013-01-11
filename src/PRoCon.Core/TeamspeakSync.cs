@@ -3022,6 +3022,7 @@ namespace PRoConEvents
             channelCreateQuery.addParameter("channel_name", Name);
             channelCreateQuery.addParameter("channel_flag_permanent", "1");
             channelCreateQuery.addParameter("cpid", mStagingChannel.tsId.Value.ToString());
+            channelCreateQuery.addParameter( "channel_codec_quality", "10");
             debugWrite(dbgChannels, "[Channels] Attempting to create ^bTeam^n Channel: {0}.", Name);
 
             // Determine if we should set a password.
@@ -3077,6 +3078,7 @@ namespace PRoConEvents
             channelCreateQuery.addParameter("channel_name", Name);
             channelCreateQuery.addParameter("channel_flag_permanent", "1");
             channelCreateQuery.addParameter("cpid", mTeamChannels[TeamId].tsId.Value.ToString());
+            channelCreateQuery.addParameter( "channel_codec_quality", "10");
             debugWrite(dbgChannels, "[Channels] Attempting to create ^bSquad^n Channel: {0}.", Name);
 
             // Determine if we should set a password.
