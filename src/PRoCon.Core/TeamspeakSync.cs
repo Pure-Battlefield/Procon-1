@@ -925,7 +925,7 @@ namespace PRoConEvents
         Boolean dbgChannels = false;
         Boolean dbgSwapping = false;
         Boolean dbgNetwork = false;
-
+        Boolean dbgBouncer = false;
 
 
         // -- Command Enumerations --------------------------------------------
@@ -949,6 +949,7 @@ namespace PRoConEvents
 
             PlayerJoined,
             PlayerLeft,
+            PlayerSpawned,
             PlayerSwappedTeamsOrSquads,
             ResetAllUsersSyncFlags,
             ResetUserSyncFlags,
@@ -1023,7 +1024,9 @@ namespace PRoConEvents
         Boolean mEnableTSStaging = false;
         Boolean mEnableTSTeam = false;
         Boolean mEnableTSNoSync = false;
-
+        // -- Event Bouncer Variables -----------------------------------------
+        Boolean mEnableBouncer = false;
+        String mBouncerKickMessage = "Sorry, you must be on our TeamSpeak server to play here.";
 
 
         /// <summary>Holds the player/punkbuster info combo from various games.</summary>
@@ -1494,7 +1497,21 @@ namespace PRoConEvents
                          "</blockquote>" +
 
                        "<h3>Section 7 - Debug Information</h3>" +
-                         "<p>This section only contains controls relevant to displaying extra information related to the plugin's inner operations.</p>";
+                         "<p>This section only contains controls relevant to displaying extra information related to the plugin's inner operations.</p>" +
+
+                        "<h3> Section 8 - Event Bouncer</h3>" +
+                            "<p>This section contains controls relevant to the custom Event Bouncer functionality</p>" +
+
+                        "<h4>Enable Event Bouncer</h4>" +
+                           "<blockquote style=\"margin-left: 0px; margin-right:0px; margin-top:0px;\">" +
+                           "Determines whether players not in the managed Teamspeak channels will be kicked when spawning." +
+                         "</blockquote>" +
+
+                         "<h4>Event Bouncer Kick Message</h4>" +
+                           "<blockquote style=\"margin-left: 0px; margin-right:0px; margin-top:0px;\">" +
+                           "The message shown to players kicked by the Event Bouncer." +
+                         "</blockquote>";
+
         }
 
 
@@ -1574,6 +1591,11 @@ namespace PRoConEvents
             lstReturn.Add(new CPluginVariable("Section 7 - Debug Information|Show Debug Messages (Channels)", typeof(Boolean), dbgChannels));
             lstReturn.Add(new CPluginVariable("Section 7 - Debug Information|Show Debug Messages (Swapping)", typeof(Boolean), dbgSwapping));
             lstReturn.Add(new CPluginVariable("Section 7 - Debug Information|Show Debug Messages (Network)",  typeof(Boolean), dbgNetwork));
+            lstReturn.Add(new CPluginVariable("Section 7 - Debug Information|Show Debug Messages (Bouncer)", typeof(Boolean), dbgBouncer));
+
+            // -- Section 8 - Event Bouncer ---------------------------------------
+            lstReturn.Add(new CPluginVariable("Section 8 - Event Bouncer|Enable Event Bouncer", typeof(Boolean), mEnableBouncer));
+            lstReturn.Add(new CPluginVariable("Section 8 - Event Bouncer|Event Bouncer Kick Message", typeof(String), mBouncerKickMessage));
 
             return lstReturn;
         }
@@ -1633,6 +1655,10 @@ namespace PRoConEvents
             lstReturn.Add(new CPluginVariable("Show Debug Messages (Channels)", typeof(Boolean), dbgChannels));
             lstReturn.Add(new CPluginVariable("Show Debug Messages (Swapping)", typeof(Boolean), dbgSwapping));
             lstReturn.Add(new CPluginVariable("Show Debug Messages (Network)", typeof(Boolean), dbgNetwork));
+            lstReturn.Add(new CPluginVariable("Show Debug Messages (Bouncer)", typeof(Boolean), dbgBouncer));
+            // -- Section 8 - Event Bouncer ---------------------------------------
+            lstReturn.Add(new CPluginVariable("Enable Event Bouncer", typeof(Boolean), mEnableBouncer));
+            lstReturn.Add(new CPluginVariable("Event Bouncer Kick Message", typeof(String), mBouncerKickMessage));
 
             return lstReturn;
         }
@@ -1750,6 +1776,14 @@ namespace PRoConEvents
                 dbgSwapping = blnOut;
             else if (strVariable == "Show Debug Messages (Network)" && Boolean.TryParse(strValue, out blnOut))
                 dbgNetwork = blnOut;
+            else if (strVariable == "Show Debug Messages (Bouncer)" && Boolean.TryParse(strValue, out blnOut))
+                dbgBouncer = blnOut;
+
+            // -- Section 8 - Event Bouncer --------------------------------------
+            else if (strVariable == "Enable Event Bouncer" && Boolean.TryParse(strValue, out blnOut))
+                mEnableBouncer = blnOut;
+            else if (strVariable == "Event Bouncer Kick Message")
+                mBouncerKickMessage = strValue;
         }
 
 
@@ -1758,7 +1792,7 @@ namespace PRoConEvents
         public void OnPluginLoaded(String strHostName, String strPort, String strPRoConVersion)
         {
             // Register Events.
-            this.RegisterEvents("OnPlayerJoin", "OnPlayerLeft", "OnPlayerTeamChange", "OnPlayerSquadChange", "OnListPlayers", "OnPunkbusterPlayerInfo", "OnLevelLoaded", "OnRoundOver", "OnGlobalChat", "OnTeamChat", "OnSquadChat");
+            this.RegisterEvents("OnPlayerJoin", "OnPlayerLeft", "OnPlayerSpawned", "OnPlayerTeamChange", "OnPlayerSquadChange", "OnListPlayers", "OnPunkbusterPlayerInfo", "OnLevelLoaded", "OnRoundOver", "OnGlobalChat", "OnTeamChat", "OnSquadChat");
 
             // Create thread so UI doesn't hang up on networking.
             try
@@ -1830,7 +1864,12 @@ namespace PRoConEvents
             this.ExecuteCommand("procon.protected.send", "admin.listPlayers", "all");
         }
 
-
+        /// <summary>Is called when a player spawns.</summary>
+        public void OnPlayerSpawned(String strSoldierName, Inventory spawnedInventory)
+        {
+            if (mEnabled && !mTsReconnecting)
+                addToActionQueue(Commands.PlayerSpawned, strSoldierName);
+        }
 
         /// <summary>Is called when a player joins the server.</summary>
         public void OnPlayerJoin(String strSoldierName)
@@ -2048,6 +2087,10 @@ namespace PRoConEvents
                         case Commands.PlayerLeft:
                             debugWrite(dbgEvents, "[Event] Processing Player Left Event.");
                             playerLeft((String)mCurrentAction.Argument);
+                            break;
+                        case Commands.PlayerSpawned:
+                            debugWrite(dbgEvents, "[Event] Processing Player Spawn Event.");
+                            playerSpawned((String)mCurrentAction.Argument);
                             break;
                         case Commands.PlayerSwappedTeamsOrSquads:
                             debugWrite(dbgEvents, "[Event] Processing Swapped Teams or Squads Event.");
@@ -2476,7 +2519,6 @@ namespace PRoConEvents
             foreach (TeamspeakResponseSection sec in mTsResponse.Sections)
                 foreach (TeamspeakResponseGroup grp in sec.Groups)
                     channelInfo.Add(new TeamspeakChannel(grp));
-
 
             // Clean list of users who aren't in a known channel
             for (int i = 0; i < clientInfo.Count; i++)
@@ -2915,6 +2957,91 @@ namespace PRoConEvents
                     break;
                 }
         }
+
+        /// <summary>Event Bouncer: Checks if the player is in a staging/team/squad channel. If not, it kicks them.</summary>
+        /// <param name="Name">The name of the player that spawned.</param>
+        public void playerSpawned(String Name)
+        {
+            if (mEnableBouncer)
+            {
+                Boolean needsKick = true;
+                String kMsg = "";
+
+                foreach (MasterClient mstClient in mClientAllInfo)
+                {
+                    if (mstClient.HasGmClient && mstClient.GmClient.Name == Name)
+                    {
+                        // Check Teamspeak Channel Id versus given staging/squad/etc channel ids
+                        if (mstClient.HasTsClient)
+                        {
+                            // Player may not have a TS client yet depending on timing.
+                            debugWrite(dbgBouncer, "[BNC] Player " + Name + " has TS Client.");
+                            
+                            int chanId = mstClient.TsClient.medChannelId.HasValue ?
+                                mstClient.TsClient.medChannelId.Value : -1;
+
+                            kMsg += "ChanID: " + chanId + " Checked IDs: " + mStagingChannel.tsId + ",";
+
+                            // Check to see if user is in staging channel.
+                            if (chanId == mStagingChannel.tsId)
+                                needsKick = false;
+
+                            // Check to see if the user is in a pickup channel.
+                            foreach (TeamspeakChannel pickupChannel in mPickupChannels)
+                            {
+                                kMsg += pickupChannel.tsId + ",";
+                                if (chanId == pickupChannel.tsId)
+                                {
+                                    needsKick = false;
+                                    break;
+                                }
+                            }
+                            // Check to see if the user is in a team channel.
+                            foreach (TeamspeakChannel teamChannel in mTeamChannels.Values)
+                            {
+                                kMsg += teamChannel.tsId + ",";
+                                if (chanId == teamChannel.tsId)
+                                {
+                                    needsKick = false;
+                                    break;
+                                }
+                            }
+
+                            // Check to see if the user is in a squad channel.
+                            foreach (Dictionary<Int32, TeamspeakChannel> teamChannels in mSquadChannels.Values)
+                                foreach (TeamspeakChannel squadChannel in teamChannels.Values)
+                                {
+                                    kMsg += squadChannel.tsId + ",";
+                                    if (chanId == squadChannel.tsId)
+                                    {
+                                        needsKick = false;
+                                        break;
+                                    }
+                                }
+                        }
+                        else
+                        {
+                            // Player doesn't have TS client which probably means s/he is not on the server.
+                            needsKick = true;
+                        }
+
+                        // Kick Player
+                        if (needsKick)
+                        {
+                            debugWrite(dbgBouncer, "[BNC] Player " + Name + " not found on TS/in proper channel. Kicking.");
+                            debugWrite(dbgBouncer, "[BNC] " + kMsg);
+
+                            this.ExecuteCommand("procon.protected.send", "admin.kickPlayer", Name, mBouncerKickMessage);
+                        } else {
+                            debugWrite(dbgBouncer, "[BNC] Player " + Name + " found. Not Kicking.");
+                        }
+
+                        break;
+                    }
+                }
+            }
+        }
+
         /// <summary>Updates the client's Team/Squad information and swaps them if neccessary.</summary>
         /// <param name="Name">The name of the client that swapped.</param>
         /// <param name="TeamId">The team the client swapped to.</param>
